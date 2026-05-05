@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: analytics-service
+  namespace: tinyurl-prod
+spec:
+  selector:
+    app: analytics-service
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: analytics-service-sa
+  namespace: tinyurl-prod
+  annotations:
+    azure.workload.identity/client-id: $(ANALYTICS_SERVICE_CLIENT_ID)
