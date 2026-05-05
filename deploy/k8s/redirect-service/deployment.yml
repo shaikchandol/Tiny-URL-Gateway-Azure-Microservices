@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redirect-service
+  namespace: tinyurl-prod
+  labels:
+    app: redirect-service
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: redirect-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 2
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: redirect-service
+      annotations:
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: redirect-service-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: redirect-service
+        image: tinyurlacr.azurecr.io/tinyurl/redirect-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          value: Production
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: http://otel-collector:4317
+        - name: OTEL_SERVICE_NAME
+          value: redirect-service
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 300m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8080
+          initialDelaySeconds: 3
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: [ALL]
