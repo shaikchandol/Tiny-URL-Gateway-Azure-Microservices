@@ -1,0 +1,209 @@
+trigger:
+  branches:
+    include: [main]
+  paths:
+    include:
+      - src/services/TinyUrl.UrlService/**
+      - src/shared/**
+      - src/TinyUrl.ServiceDefaults/**
+
+pr:
+  branches:
+    include: [main]
+  paths:
+    include:
+      - src/services/TinyUrl.UrlService/**
+
+variables:
+  - group: tinyurl-azure-vars
+  - name: serviceName
+    value: url-service
+  - name: dockerfilePath
+    value: src/services/TinyUrl.UrlService/TinyUrl.UrlService.Api/Dockerfile
+  - name: imageRepository
+    value: tinyurl/url-service
+  - name: vmImageName
+    value: ubuntu-latest
+
+stages:
+
+# ─── Stage 1: Build & Test ────────────────────────────────────────────────────
+- stage: Build
+  displayName: Build and Test
+  jobs:
+  - job: Build
+    displayName: Build, Test & SAST
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: UseDotNet@2
+      displayName: Install .NET 9
+      inputs:
+        version: 9.x
+
+    - task: DotNetCoreCLI@2
+      displayName: Restore packages
+      inputs:
+        command: restore
+        projects: TinyUrl.Microservices.sln
+
+    - task: DotNetCoreCLI@2
+      displayName: Build solution
+      inputs:
+        command: build
+        projects: TinyUrl.Microservices.sln
+        arguments: --configuration Release --no-restore
+
+    - task: DotNetCoreCLI@2
+      displayName: Run unit tests
+      inputs:
+        command: test
+        projects: '**/*.Tests.csproj'
+        arguments: --configuration Release --no-build --collect:"XPlat Code Coverage" --results-directory $(Agent.TempDirectory)/coverage
+
+    - task: PublishCodeCoverageResults@2
+      displayName: Publish code coverage
+      inputs:
+        codeCoverageTool: Cobertura
+        summaryFileLocation: $(Agent.TempDirectory)/coverage/**/coverage.cobertura.xml
+
+    - script: |
+        dotnet tool install --global security-scan
+        security-scan TinyUrl.Microservices.sln --no-banner
+      displayName: SAST Security Scan
+
+    - task: PublishBuildArtifacts@1
+      inputs:
+        artifactName: drop-$(serviceName)
+
+# ─── Stage 2: Docker Build & Push to ACR ─────────────────────────────────────
+- stage: Containerize
+  displayName: Build & Push Docker Image
+  dependsOn: Build
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - job: Docker
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: AzureCLI@2
+      displayName: Login to ACR via Managed Identity
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          az acr login --name $(acrName)
+
+    - task: Docker@2
+      displayName: Build Docker image
+      inputs:
+        containerRegistry: $(acrServiceConnection)
+        repository: $(imageRepository)
+        command: build
+        dockerfile: $(dockerfilePath)
+        buildContext: .
+        tags: |
+          $(Build.BuildId)
+          latest
+
+    - task: AzureCLI@2
+      displayName: Trivy vulnerability scan
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy image --exit-code 1 --severity HIGH,CRITICAL \
+            $(acrName).azurecr.io/$(imageRepository):$(Build.BuildId)
+
+    - task: Docker@2
+      displayName: Push Docker image to ACR
+      inputs:
+        containerRegistry: $(acrServiceConnection)
+        repository: $(imageRepository)
+        command: push
+        tags: |
+          $(Build.BuildId)
+          latest
+
+# ─── Stage 3: Deploy to AKS (Dev) ────────────────────────────────────────────
+- stage: DeployDev
+  displayName: Deploy to Dev (AKS)
+  dependsOn: Containerize
+  variables:
+    environment: dev
+  jobs:
+  - deployment: DeployDev
+    environment: dev
+    pool:
+      vmImage: $(vmImageName)
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureCLI@2
+            displayName: Get AKS credentials
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az aks get-credentials --resource-group $(resourceGroup)-dev --name $(aksClusterName)-dev
+
+          - task: KubernetesManifest@1
+            displayName: Deploy URL Service to AKS
+            inputs:
+              action: deploy
+              namespace: tinyurl-dev
+              manifests: |
+                deploy/k8s/url-service/deployment.yml
+                deploy/k8s/url-service/service.yml
+                deploy/k8s/url-service/hpa.yml
+              containers: $(acrName).azurecr.io/$(imageRepository):$(Build.BuildId)
+
+          - task: AzureCLI@2
+            displayName: Verify rollout
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                kubectl rollout status deployment/url-service -n tinyurl-dev --timeout=5m
+
+# ─── Stage 4: Deploy to Production ───────────────────────────────────────────
+- stage: DeployProd
+  displayName: Deploy to Production (AKS)
+  dependsOn: DeployDev
+  variables:
+    environment: prod
+  jobs:
+  - deployment: DeployProd
+    environment: prod
+    pool:
+      vmImage: $(vmImageName)
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureCLI@2
+            displayName: Get AKS credentials (prod)
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az aks get-credentials --resource-group $(resourceGroup)-prod --name $(aksClusterName)-prod
+
+          - task: KubernetesManifest@1
+            displayName: Blue-Green Deploy URL Service
+            inputs:
+              action: deploy
+              namespace: tinyurl-prod
+              strategy: blueGreen
+              manifests: |
+                deploy/k8s/url-service/deployment.yml
+                deploy/k8s/url-service/service.yml
+                deploy/k8s/url-service/hpa.yml
+              containers: $(acrName).azurecr.io/$(imageRepository):$(Build.BuildId)
