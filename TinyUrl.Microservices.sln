@@ -1,0 +1,28 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.10.0.0
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TinyUrl.AppHost", "src\TinyUrl.AppHost\TinyUrl.AppHost.csproj", "{A0000001-0000-0000-0000-000000000001}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TinyUrl.ServiceDefaults", "src\TinyUrl.ServiceDefaults\TinyUrl.ServiceDefaults.csproj", "{A0000002-0000-0000-0000-000000000002}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TinyUrl.Contracts", "src\shared\TinyUrl.Contracts\TinyUrl.Contracts.csproj", "{A0000003-0000-0000-0000-000000000003}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TinyUrl.UrlService.Api", "src\services\TinyUrl.UrlService\TinyUrl.UrlService.Api\TinyUrl.UrlService.Api.csproj", "{B0000001-0000-0000-0000-000000000001}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TinyUrl.UrlService.Application", "src\services\TinyUrl.UrlService\TinyUrl.UrlService.Application\TinyUrl.UrlService.Application.csproj", "{B0000002-0000-0000-0000-000000000002}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TinyUrl.UrlService.Domain", "src\services\TinyUrl.UrlService\TinyUrl.UrlService.Domain\TinyUrl.UrlService.Domain.csproj", "{B0000003-0000-0000-0000-000000000003}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TinyUrl.UrlService.Infrastructure", "src\services\TinyUrl.UrlService\TinyUrl.UrlService.Infrastructure\TinyUrl.UrlService.Infrastructure.csproj", "{B0000004-0000-0000-0000-000000000004}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TinyUrl.RedirectService.Api", "src\services\TinyUrl.RedirectService\TinyUrl.RedirectService.Api\TinyUrl.RedirectService.Api.csproj", "{C0000001-0000-0000-0000-000000000001}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TinyUrl.AnalyticsService.Api", "src\services\TinyUrl.AnalyticsService\TinyUrl.AnalyticsService.Api\TinyUrl.AnalyticsService.Api.csproj", "{D0000001-0000-0000-0000-000000000001}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+EndGlobal
