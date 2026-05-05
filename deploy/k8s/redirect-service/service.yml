@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: redirect-service
+  namespace: tinyurl-prod
+spec:
+  selector:
+    app: redirect-service
+  ports:
+  - port: 80
+    targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: redirect-service-sa
+  namespace: tinyurl-prod
+  annotations:
+    azure.workload.identity/client-id: $(REDIRECT_SERVICE_CLIENT_ID)
