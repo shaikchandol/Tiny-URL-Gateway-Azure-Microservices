@@ -1,0 +1,85 @@
+trigger:
+  branches:
+    include: [main]
+  paths:
+    include:
+      - deploy/bicep/**
+
+variables:
+  - group: tinyurl-azure-vars
+  - name: vmImageName
+    value: ubuntu-latest
+
+stages:
+- stage: ValidateBicep
+  displayName: Validate Bicep Templates
+  jobs:
+  - job: Validate
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: AzureCLI@2
+      displayName: Bicep lint & validate (Dev)
+      inputs:
+        azureSubscription: $(azureServiceConnection)
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          az bicep build --file deploy/bicep/main.bicep
+          az deployment sub what-if \
+            --location $(azureLocation) \
+            --template-file deploy/bicep/main.bicep \
+            --parameters environment=dev
+
+- stage: DeployInfraDev
+  displayName: Deploy Infrastructure (Dev)
+  dependsOn: ValidateBicep
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - deployment: InfraDev
+    environment: dev-infra
+    pool:
+      vmImage: $(vmImageName)
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureCLI@2
+            displayName: Deploy Bicep to Dev
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az deployment sub create \
+                  --location $(azureLocation) \
+                  --template-file deploy/bicep/main.bicep \
+                  --parameters environment=dev \
+                               acrName=$(acrName) \
+                               aksClusterName=$(aksClusterName)
+
+- stage: DeployInfraProd
+  displayName: Deploy Infrastructure (Prod)
+  dependsOn: DeployInfraDev
+  jobs:
+  - deployment: InfraProd
+    environment: prod-infra
+    pool:
+      vmImage: $(vmImageName)
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureCLI@2
+            displayName: Deploy Bicep to Prod
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                az deployment sub create \
+                  --location $(azureLocation) \
+                  --template-file deploy/bicep/main.bicep \
+                  --parameters environment=prod \
+                               acrName=$(acrName) \
+                               aksClusterName=$(aksClusterName)
