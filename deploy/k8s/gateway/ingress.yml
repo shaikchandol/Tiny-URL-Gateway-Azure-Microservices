@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tinyurl-ingress
+  namespace: tinyurl-prod
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    appgw.ingress.kubernetes.io/backend-protocol: http
+    appgw.ingress.kubernetes.io/waf-policy-for-path: /subscriptions/.../resourceGroups/.../providers/Microsoft.Network/applicationGatewayWebApplicationFirewallPolicies/tinyurl-waf
+spec:
+  tls:
+  - hosts:
+    - api.tinyurl.example.com
+    secretName: tinyurl-tls
+  rules:
+  - host: api.tinyurl.example.com
+    http:
+      paths:
+      - path: /api/urls
+        pathType: Prefix
+        backend:
+          service:
+            name: url-service
+            port:
+              number: 80
+      - path: /api/analytics
+        pathType: Prefix
+        backend:
+          service:
+            name: analytics-service
+            port:
+              number: 80
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: redirect-service
+            port:
+              number: 80
