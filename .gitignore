@@ -1,0 +1,14 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+.env
+.env.local
+appsettings.Production.json
+appsettings.Secrets.json
+.DS_Store
+Thumbs.db
+*.log
+logs/
+docker-compose.override.yml
